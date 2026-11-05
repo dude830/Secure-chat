@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Multi-Device Cloud Chat</title>
+    <style>
+        :root {
+            --bg-color: #f4f5f7;
+            --card-bg: #ffffff;
+            --primary: #007aff;
+            --text-main: #1d1d1f;
+            --text-muted: #86868b;
+            --border: #e5e5ea;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text-main); display: flex; justify-content: center; align-items: center; height: 100vh; }
+
+        /* PASSCODE SCREEN */
+        .gatekeeper-container { text-align: center; background: var(--card-bg); padding: 40px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); width: 100%; max-width: 400px; }
+        .gatekeeper-container h2 { margin-bottom: 10px; font-size: 24px; font-weight: 600; }
+        .gatekeeper-container p { color: var(--text-muted); font-size: 14px; margin-bottom: 25px; }
+        .pin-input { width: 100%; padding: 15px; border-radius: 12px; border: 1px solid var(--border); font-size: 18px; text-align: center; letter-spacing: 8px; margin-bottom: 15px; outline: none; }
+        .pin-input:focus { border-color: var(--primary); }
+        .btn-unlock { width: 100%; background: var(--primary); color: white; border: none; padding: 15px; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; }
+        .error-msg { color: #ff3b30; font-size: 13px; margin-top: 10px; display: none; }
+
+        /* CHAT INTERFACE */
+        .chat-container { display: none; width: 100%; max-width: 800px; height: 85vh; background: var(--card-bg); border-radius: 24px; box-shadow: 0 10px 40px rgba(0,0,0,0.03); border: 1px solid var(--border); flex-direction: column; overflow: hidden; }
+        .chat-header { padding: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+        .chat-header h3 { font-weight: 600; font-size: 18px; }
+        .status-dot { width: 8px; height: 8px; background: #34c759; border-radius: 50%; display: inline-block; margin-right: 6px; }
+        .chat-messages { flex: 1; padding: 20px; overflow-y: auto; background: #fafafa; display: flex; flex-direction: column; gap: 15px; }
+        
+        /* MESSAGE BUBBLES */
+        .message-row { display: flex; flex-direction: column; width: 100%; }
+        .msg-sender { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; padding: 0 8px; }
+        .message { max-width: 70%; padding: 12px 16px; border-radius: 18px; font-size: 15px; line-height: 1.4; word-break: break-word; }
+        
+        .row-incoming { align-items: flex-start; }
+        .row-incoming .message { background: #e9e9eb; color: black; border-bottom-left-radius: 4px; }
+        
+        .row-outgoing { align-items: flex-end; }
+        .row-outgoing .message { background: var(--primary); color: white; border-bottom-right-radius: 4px; }
+        
+        /* INPUT AREA */
+        .chat-input-area { padding: 20px; border-top: 1px solid var(--border); display: flex; gap: 12px; background: var(--card-bg); }
+        .chat-input { flex: 1; padding: 14px; border: 1px solid var(--border); border-radius: 14px; font-size: 15px; outline: none; }
+        .btn-send { background: var(--primary); color: white; border: none; padding: 0 24px; border-radius: 14px; font-weight: 600; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <!-- Lock Screen -->
+    <div class="gatekeeper-container" id="lockScreen">
+        <h2>🔒 Multi-Device Login</h2>
+        <p>Enter the master passcode to link this browser instance.</p>
+        <input type="password" id="passcodeField" class="pin-input" placeholder="••••" maxlength="4">
+        <button class="btn-unlock" onclick="checkPasscode()">Verify & Sync</button>
+        <p class="error-msg" id="errorMsg">Invalid Passcode.</p>
+    </div>
+
+    <!-- Chat Screen -->
+    <div class="chat-container" id="chatScreen">
+        <div class="chat-header">
+            <div>
+                <h3><span class="status-dot"></span> Real-Time Cloud Room</h3>
+            </div>
+            <button onclick="location.reload()" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:14px;">Disconnect</button>
+        </div>
+        
+        <div class="chat-messages" id="messageBox"></div>
+
+        <div class="chat-input-area">
+            <input type="text" id="chatInputField" class="chat-input" placeholder="Type a syncable cloud message...">
+            <button class="btn-send" onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+
+    <!-- Firebase Script Architecture -->
+    <script type="module">
+        import { initializeApp } from "https://gstatic.com";
+        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot } from "https://gstatic.com";
+
+        // Generate a random Device ID for distinguishing incoming/outgoing messages
+        const myDeviceId = "Device-" + Math.floor(Math.random() * 10000);
+
+        // Replace these settings with your own personal Firebase config details
+        const firebaseConfig = {
+            apiKey: "AIzaSyAsMockKey-ReplaceWithYourActualKey",
+            authDomain: "://firebaseapp.com",
+            projectId: "your-project-id",
+            storageBucket: "://appspot.com",
+            messagingSenderId: "1234567890",
+            appId: "1:1234567890:web:abcdef123456"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // Passcode Validation Logic
+        const MASTER_PASSCODE = "1234"; 
+        window.checkPasscode = function() {
+            const input = document.getElementById('passcodeField').value;
+            if (input === MASTER_PASSCODE) {
+                document.getElementById('lockScreen').style.display = 'none';
+                document.getElementById('chatScreen').style.display = 'flex';
+                initRealtimeListener();
+            } else {
+                document.getElementById('errorMsg').style.display = 'block';
+            }
+        };
+
+        // Stream messages live on all open devices
+        function initRealtimeListener() {
+            const q = query(collection(db, "messages"), orderBy("timestamp", "asc"));
+            onSnapshot(q, (snapshot) => {
+                const messageBox = document.getElementById('messageBox');
+                messageBox.innerHTML = ''; // Fresh render
+                
+                snapshot.forEach((doc) => {
+                    const data = doc.data();
+                    const isMe = data.deviceId === myDeviceId;
+                    
+                    const row = document.createElement('div');
+                    row.className = `message-row ${isMe ? 'row-outgoing' : 'row-incoming'}`;
+                    
+                    row.innerHTML = `
+                        <span class="msg-sender">${isMe ? 'You' : data.deviceId}</span>
+                        <div class="message">${data.text}</div>
+                    `;
+                    messageBox.appendChild(row);
+                });
+                messageBox.scrollTop = messageBox.scrollHeight;
+            });
+        }
+
+        // Push new data up to the cloud collection
+        window.sendMessage = async function() {
+            const inputField = document.getElementById('chatInputField');
+            const messageText = inputField.value.trim();
+            if(!messageText) return;
+
+            try {
+                await addDoc(collection(db, "messages"), {
+                    text: messageText,
+                    deviceId: myDeviceId,
+                    timestamp: new Date().getTime()
+                });
+                inputField.value = '';
+            } catch (e) {
+                console.error("Error writing document: ", e);
+            }
+        };
+
+        // Key bindings
+        document.getElementById('passcodeField').addEventListener('keypress', (e) => { if (e.key === 'Enter') checkPasscode(); });
+        document.getElementById('chatInputField').addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+    </script>
+</body>
+</html>
