@@ -100,13 +100,13 @@
         const db = getFirestore(app);
 
         // Passcode Validation Logic
-        const MASTER_PASSCODE = "1234"; 
+        const MASTER_PASSCODE = "0000"; 
         window.checkPasscode = function() {
             const input = document.getElementById('passcodeField').value;
             if (input === MASTER_PASSCODE) {
                 document.getElementById('lockScreen').style.display = 'none';
                 document.getElementById('chatScreen').style.display = 'flex';
-                initRealtimeListener();
+                //initRealtimeListener();
             } else {
                 document.getElementById('errorMsg').style.display = 'block';
             }
