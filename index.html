@@ -62,7 +62,7 @@
     <div class="chat-container" id="chatScreen">
         <div class="chat-header">
             <div><h3>💬 Private Workspace</h3></div>
-            <div class="status-box" id="connectionStatus">Sandbox Mode Active</div>
+            <div class="status-box" id="connectionStatus">Secure Memory Active</div>
         </div>
         
         <div class="chat-messages" id="messageBox"></div>
@@ -74,7 +74,12 @@
     </div>
 
     <script>
-        // Your newly assigned passcode
+        // Automatic Guardrail: Clears old corrupted database histories from previous setups
+        if (!localStorage.getItem('system_cleaned_v3')) {
+            localStorage.clear();
+            localStorage.setItem('system_cleaned_v3', 'true');
+        }
+
         const MASTER_PASSCODE = "1356"; 
         let localMessageCache = [];
 
@@ -93,10 +98,9 @@
             document.getElementById('passcodeField').value = '';
         };
 
-        // Pulls stored history payload cleanly from the memory buffer
         function loadSavedMessages() {
             try {
-                const saved = localStorage.getItem('secure_chat_history_v2');
+                const saved = localStorage.getItem('secure_chat_history_v3');
                 if (saved) {
                     localMessageCache = JSON.parse(saved);
                     renderChatFeed();
@@ -137,13 +141,11 @@
 
             localMessageCache.push(newMsgPayload);
             
-            // Limit stored memory pool array to the last 100 message lines
             if (localMessageCache.length > 100) {
                 localMessageCache.shift();
             }
 
-            // Write straight to device internal memory matrices
-            localStorage.setItem('secure_chat_history_v2', JSON.stringify(localMessageCache));
+            localStorage.setItem('secure_chat_history_v3', JSON.stringify(localMessageCache));
             
             renderChatFeed();
             inputField.value = '';
@@ -160,4 +162,3 @@
     </script>
 </body>
 </html>
-
