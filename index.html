@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Secure WeChat-Style Cloud Chat</title>
+    <title>Secure Workspace Platform</title>
     <style>
         :root {
             --bg-color: #f4f5f7;
             --card-bg: #ffffff;
-            --primary: #07c160; /* WeChat Green Accent */
+            --primary: #07c160; /* Sleek WeChat Green */
             --text-main: #1d1d1f;
             --text-muted: #86868b;
             --border: #e5e5ea;
@@ -51,90 +51,72 @@
 
     <!-- Lock Screen Layout -->
     <div class="gatekeeper-container" id="lockScreen">
-        <h2>🔒 Cloud Secured Chat</h2>
-        <p>Enter your master PIN to download synced cloud history.</p>
+        <h2>🔒 Secured Platform</h2>
+        <p>Enter your 4-digit PIN to access this private space.</p>
         <input type="password" id="passcodeField" class="pin-input" placeholder="••••" maxlength="4">
-        <button class="btn-unlock" onclick="checkPasscode()">Verify & Sync Cloud</button>
+        <button class="btn-unlock" onclick="checkPasscode()">Verify & Unlock</button>
         <p class="error-msg" id="errorMsg">Incorrect passcode.</p>
     </div>
 
     <!-- Chat App Layout -->
     <div class="chat-container" id="chatScreen">
         <div class="chat-header">
-            <div><h3>💬 Secure Cloud Room</h3></div>
-            <div class="status-box" id="connectionStatus">Syncing...</div>
+            <div><h3>💬 Private Workspace</h3></div>
+            <div class="status-box" id="connectionStatus">Sandbox Mode Active</div>
         </div>
         
         <div class="chat-messages" id="messageBox"></div>
 
         <div class="chat-input-area">
-            <input type="text" id="chatInputField" class="chat-input" placeholder="Type a permanent cloud message...">
+            <input type="text" id="chatInputField" class="chat-input" placeholder="Type a message to lock onto screen...">
             <button class="btn-send" onclick="sendMessage()">Send</button>
         </div>
     </div>
 
     <script>
+        // Your newly assigned passcode
         const MASTER_PASSCODE = "1356"; 
-        
-        // Generate a continuous fingerprint profile token for this device tab
-        let myUserFingerprint = localStorage.getItem('chat_user_fingerprint');
-        if (!myUserFingerprint) {
-            myUserFingerprint = "User-" + Math.floor(Math.random() * 9000 + 1000);
-            localStorage.setItem('chat_user_fingerprint', myUserFingerprint);
-        }
-
-        // An open-access public global developer repository URL link for your chat cache
-        // We use a timestamp tracking mechanism to isolate your messages securely
-        const CLOUD_BIN_URL = "https://jsonbin.io"; 
-        const ACCESS_KEY = "$2a$10$UnXwK4/kH65jR8zF800Gie1gUj6v.WOn66A8f62fL9iN74A94xUKe"; // Free master fetch bypass key
-
         let localMessageCache = [];
 
         window.checkPasscode = function() {
             const input = document.getElementById('passcodeField').value;
+            const error = document.getElementById('errorMsg');
+            
             if (input === MASTER_PASSCODE) {
                 document.getElementById('lockScreen').style.display = 'none';
                 document.getElementById('chatScreen').style.display = 'flex';
-                fetchCloudMessages();
-                // Check the database for updates automatically every 5 seconds
-                setInterval(fetchCloudMessages, 5000);
+                error.style.display = 'none';
+                loadSavedMessages();
             } else {
-                document.getElementById('errorMsg').style.display = 'block';
+                error.style.display = 'block';
             }
             document.getElementById('passcodeField').value = '';
         };
 
-        // DOWNLOAD MESSAGES FROM VAULT
-        async function fetchCloudMessages() {
+        // Pulls stored history payload cleanly from the memory buffer
+        function loadSavedMessages() {
             try {
-                const response = await fetch(`${CLOUD_BIN_URL}/latest`, {
-                    headers: { "X-Master-Key": ACCESS_KEY }
-                });
-                const data = await response.json();
-                
-                // If cloud vault holds clean messages array, map it to screen
-                if (data.record && Array.isArray(data.record.messages)) {
-                    localMessageCache = data.record.messages;
+                const saved = localStorage.getItem('secure_chat_history_v2');
+                if (saved) {
+                    localMessageCache = JSON.parse(saved);
                     renderChatFeed();
-                    document.getElementById('connectionStatus').textContent = "☁️ Saved & Synced";
                 }
             } catch (err) {
-                console.error("Cloud download dropped: ", err);
-                document.getElementById('connectionStatus').textContent = "Sync Offline";
+                console.error("Local sandbox read failure", err);
             }
         }
 
         function renderChatFeed() {
             const messageBox = document.getElementById('messageBox');
-            messageBox.innerHTML = ''; // Fresh render matrix wipe
+            messageBox.innerHTML = ''; 
             
             localMessageCache.forEach((msg) => {
-                const isMe = msg.sender === myUserFingerprint;
+                const isMe = msg.sender === 'You';
                 const row = document.createElement('div');
                 row.className = `message-row ${isMe ? 'row-outgoing' : 'row-incoming'}`;
                 
                 row.innerHTML = `
-                    <span class="msg-sender">${isMe ? 'You' : msg.sender}</span>
+                    <span class="msg-sender">${msg.sender}</span>
                     <div class="message">${escapeHTML(msg.text)}</div>
                 `;
                 messageBox.appendChild(row);
@@ -142,44 +124,29 @@
             messageBox.scrollTop = messageBox.scrollHeight;
         }
 
-        // UPLOAD MESSAGES TO VAULT
-        window.sendMessage = async function() {
+        window.sendMessage = function() {
             const inputField = document.getElementById('chatInputField');
             const text = inputField.value.trim();
             if (!text) return;
 
             const newMsgPayload = {
                 text: text,
-                sender: myUserFingerprint,
+                sender: 'You',
                 timestamp: new Date().getTime()
             };
 
-            // 1. Immediately drop it into your local array so it NEVER vanishes from screen
             localMessageCache.push(newMsgPayload);
-            renderChatFeed();
-            inputField.value = '';
-            document.getElementById('connectionStatus').textContent = "Uploading...";
-
-            // Limit memory array size to the last 50 entries to keep it light
-            if (localMessageCache.length > 50) {
+            
+            // Limit stored memory pool array to the last 100 message lines
+            if (localMessageCache.length > 100) {
                 localMessageCache.shift();
             }
 
-            // 2. Upload the updated history pack to the cloud storage bucket line
-            try {
-                await fetch(CLOUD_BIN_URL, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Master-Key': ACCESS_KEY
-                    },
-                    body: JSON.stringify({ messages: localMessageCache })
-                });
-                document.getElementById('connectionStatus').textContent = "☁️ Saved & Synced";
-            } catch (err) {
-                console.error("Cloud push dropped: ", err);
-                document.getElementById('connectionStatus').textContent = "Save Failed";
-            }
+            // Write straight to device internal memory matrices
+            localStorage.setItem('secure_chat_history_v2', JSON.stringify(localMessageCache));
+            
+            renderChatFeed();
+            inputField.value = '';
         };
 
         function escapeHTML(str) {
@@ -189,3 +156,8 @@
         }
 
         document.getElementById('passcodeField').addEventListener('keypress', (e) => { if (e.key === 'Enter') checkPasscode(); });
+        document.getElementById('chatInputField').addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+    </script>
+</body>
+</html>
+
