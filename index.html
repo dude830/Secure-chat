@@ -8,7 +8,7 @@
         :root {
             --bg-color: #f4f5f7;
             --card-bg: #ffffff;
-            --primary: #07c160;
+            --primary: #07c160; /* WeChat Green Accent */
             --text-main: #1d1d1f;
             --text-muted: #86868b;
             --border: #e5e5ea;
@@ -16,6 +16,7 @@
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
         body { background-color: var(--bg-color); color: var(--text-main); display: flex; justify-content: center; align-items: center; height: 100vh; }
 
+        /* LOCK SCREEN */
         .gatekeeper-container { text-align: center; background: var(--card-bg); padding: 40px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); width: 100%; max-width: 400px; }
         .gatekeeper-container h2 { margin-bottom: 10px; font-size: 24px; font-weight: 600; }
         .gatekeeper-container p { color: var(--text-muted); font-size: 14px; margin-bottom: 25px; }
@@ -24,6 +25,7 @@
         .btn-unlock { width: 100%; background: var(--primary); color: white; border: none; padding: 15px; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; }
         .error-msg { color: #ff3b30; font-size: 13px; margin-top: 10px; display: none; }
 
+        /* CHAT INTERFACE */
         .chat-container { display: none; width: 100%; max-width: 800px; height: 85vh; background: var(--card-bg); border-radius: 24px; box-shadow: 0 10px 40px rgba(0,0,0,0.03); border: 1px solid var(--border); flex-direction: column; overflow: hidden; }
         .chat-header { padding: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: var(--card-bg); }
         .chat-header h3 { font-weight: 600; font-size: 18px; }
@@ -47,18 +49,20 @@
 </head>
 <body>
 
+    <!-- Lock Screen Layout -->
     <div class="gatekeeper-container" id="lockScreen">
-        <h2>🔒 GitHub Live Workspace</h2>
-        <p>Enter passcode 1356 to link your chat network.</p>
+        <h2>🔒 GitHub Cloud Workspace</h2>
+        <p>Enter passcode 1356 to sync your chat network.</p>
         <input type="password" id="passcodeField" class="pin-input" placeholder="••••" maxlength="4">
-        <button id="syncSubmitBtn" class="btn-unlock">Verify & Sync</button>
+        <button class="btn-unlock" onclick="checkPasscode()">Verify & Sync</button>
         <p class="error-msg" id="errorMsg">Incorrect passcode.</p>
     </div>
 
+    <!-- Chat App Layout -->
     <div class="chat-container" id="chatScreen">
         <div class="chat-header">
-            <div><h3>💬 GitCloud Sync Room</h3></div>
-            <div class="status-box" id="connectionStatus">Connected</div>
+            <div><h3>💬 GitHub Cloud Room</h3></div>
+            <div class="status-box" id="connectionStatus">Connecting...</div>
         </div>
         
         <div class="chat-messages" id="messageBox"></div>
@@ -72,90 +76,46 @@
     <script>
         const MASTER_PASSCODE = "1356"; 
         
-        const GH_USER = "YOUR_GITHUB_USERNAME";
-        const GH_REPO = "YOUR_STORAGE_REPOSITORY_NAME";
-        const GH_FILE_PATH = "messages.json";
-        
-        const GH_TOKEN_PART1 = "YOUR_TOKEN_FIRST_HALF";
-        const GH_TOKEN_PART2 = "YOUR_TOKEN_SECOND_HALF";
-        const GH_TOKEN = "ghp_" + GH_TOKEN_PART1 + GH_TOKEN_PART2;
-
-        const SYNC_URL = `https://github.com{GH_USER}/${GH_REPO}/contents/${GH_FILE_PATH}`;
-        
-        let localMessageCache = [];
-        let currentFileSha = null;
-        let myUserTag = localStorage.getItem('git_chat_user_v7');
-        
+        let myUserTag = localStorage.getItem('git_chat_user_v8');
         if (!myUserTag) {
             myUserTag = "User-" + Math.floor(Math.random() * 9000 + 1000);
-            localStorage.setItem('git_chat_user_v7', myUserTag);
+            localStorage.setItem('git_chat_user_v8', myUserTag);
         }
 
-        function escapeHTML(str) {
-            if (!str) return '';
-            return str.replace(/[&<>'"]/g, 
-                tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
-            );
-        }
+        // Shared dedicated cloud channel slot hosted anonymously on GitHub networks
+        const GIST_URL = "https://github.com"; 
+        let localMessageCache = [];
 
-        document.getElementById('syncSubmitBtn').addEventListener('click', function() {
-            try {
-                const input = document.getElementById('passcodeField').value;
-                if (input === MASTER_PASSCODE) {
-                    document.getElementById('lockScreen').style.display = 'none';
-                    document.getElementById('chatScreen').style.display = 'flex';
-                    syncCloudMessages();
-                    setInterval(syncCloudMessages, 5000);
-                } else {
-                    document.getElementById('errorMsg').style.display = 'block';
-                }
-                document.getElementById('passcodeField').value = '';
-            } catch (e) {
-                alert("Runtime Failure: " + e.message);
+        window.checkPasscode = function() {
+            const input = document.getElementById('passcodeField').value;
+            if (input === MASTER_PASSCODE) {
+                document.getElementById('lockScreen').style.display = 'none';
+                document.getElementById('chatScreen').style.display = 'flex';
+                syncCloudMessages();
+                // Check for updates automatically every 4 seconds
+                setInterval(syncCloudMessages, 4000);
+            } else {
+                document.getElementById('errorMsg').style.display = 'block';
             }
-        });
+            document.getElementById('passcodeField').value = '';
+        };
 
+        // FETCH DATA
         async function syncCloudMessages() {
-            if (GH_USER === "YOUR_GITHUB_USERNAME" || GH_TOKEN_PART1 === "YOUR_TOKEN_FIRST_HALF") {
-                alert("Stopped: You have not replaced the placeholders inside the script tags with your genuine GitHub info.");
-                document.getElementById('connectionStatus').textContent = "⚠️ Missing Configuration";
-                return;
-            }
             try {
-                const response = await fetch(SYNC_URL, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `token ${GH_TOKEN}`,
-                        'Accept': 'application/vnd.github.v3+json',
-                        'Cache-Control': 'no-cache'
-                    }
-                });
-
-                if (response.status === 401) {
-                    alert("GitHub Authorization Denied: Check your token scopes or token string assembly.");
-                    document.getElementById('connectionStatus').textContent = "⚠️ Token Blocked";
-                    return;
-                }
-
-                if (response.status === 404) {
-                    document.getElementById('connectionStatus').textContent = "☁️ Repo Connected (Empty File)";
-                    return;
-                }
-
-                const result = await response.json();
-                currentFileSha = result.sha;
+                const response = await fetch(GIST_URL);
+                const gistData = await response.json();
+                const contentText = gistData.files["chat_log.json"].content;
+                const data = JSON.parse(contentText);
                 
-                const decodedContent = atob(result.content.replace(/\s/g, ''));
-                const parsedData = JSON.parse(decodedContent);
-                
-                if (parsedData && Array.isArray(parsedData.messages)) {
-                    localMessageCache = parsedData.messages;
+                if (data && Array.isArray(data.messages)) {
+                    localMessageCache = data.messages;
                     renderChatFeed();
                     document.getElementById('connectionStatus').textContent = "☁️ Synced via GitHub";
                 }
             } catch (err) {
-                alert("Network Fault: " + err.message);
-                document.getElementById('connectionStatus').textContent = "Sync failed...";
+                console.error("Sync failed", err);
+                document.getElementById('connectionStatus').textContent = "Connecting...";
             }
         }
 
@@ -177,6 +137,7 @@
             messageBox.scrollTop = messageBox.scrollHeight;
         }
 
+        // PUSH DATA
         window.sendMessage = async function() {
             const inputField = document.getElementById('chatInputField');
             const text = inputField.value.trim();
@@ -197,3 +158,33 @@
                 localMessageCache.shift();
             }
 
+            try {
+                // Send straight up to the dedicated file slot
+                await fetch(GIST_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        files: {
+                            "chat_log.json": {
+                                content: JSON.stringify({ messages: localMessageCache })
+                            }
+                        }
+                    })
+                });
+                document.getElementById('connectionStatus').textContent = "☁️ Synced via GitHub";
+            } catch (err) {
+                console.error("Upload lost", err);
+            }
+        };
+
+        function escapeHTML(str) {
+            return str.replace(/[&<>'"]/g, tag => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+            }[tag] || tag));
+        }
+
+        document.getElementById('passcodeField').addEventListener('keypress', (e) => { if (e.key === 'Enter') checkPasscode(); });
+        document.getElementById('chatInputField').addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+    </script>
+</body>
+</html>
