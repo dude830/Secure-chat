@@ -51,7 +51,7 @@
         <h2>🔒 GitHub Live Workspace</h2>
         <p>Enter passcode 1356 to link your chat network.</p>
         <input type="password" id="passcodeField" class="pin-input" placeholder="••••" maxlength="4">
-        <button class="btn-unlock" onclick="checkPasscode()">Verify & Sync</button>
+        <button id="syncSubmitBtn" class="btn-unlock">Verify & Sync</button>
         <p class="error-msg" id="errorMsg">Incorrect passcode.</p>
     </div>
 
@@ -98,7 +98,7 @@
             );
         }
 
-        window.checkPasscode = function() {
+        document.getElementById('syncSubmitBtn').addEventListener('click', function() {
             try {
                 const input = document.getElementById('passcodeField').value;
                 if (input === MASTER_PASSCODE) {
@@ -111,14 +111,14 @@
                 }
                 document.getElementById('passcodeField').value = '';
             } catch (e) {
-                alert("Interface Error: " + e.message);
+                alert("Runtime Failure: " + e.message);
             }
-        };
+        });
 
         async function syncCloudMessages() {
             if (GH_USER === "YOUR_GITHUB_USERNAME" || GH_TOKEN_PART1 === "YOUR_TOKEN_FIRST_HALF") {
-                alert("Setup Missing: Please configure your actual GitHub credentials in the code strings.");
-                document.getElementById('connectionStatus').textContent = "⚠️ Configuration Missing";
+                alert("Stopped: You have not replaced the placeholders inside the script tags with your genuine GitHub info.");
+                document.getElementById('connectionStatus').textContent = "⚠️ Missing Configuration";
                 return;
             }
             try {
@@ -132,8 +132,8 @@
                 });
 
                 if (response.status === 401) {
-                    alert("GitHub Error: Personal Access Token is invalid or missing access scopes.");
-                    document.getElementById('connectionStatus').textContent = "⚠️ Invalid Token";
+                    alert("GitHub Authorization Denied: Check your token scopes or token string assembly.");
+                    document.getElementById('connectionStatus').textContent = "⚠️ Token Blocked";
                     return;
                 }
 
@@ -154,7 +154,7 @@
                     document.getElementById('connectionStatus').textContent = "☁️ Synced via GitHub";
                 }
             } catch (err) {
-                console.error("Sync failed", err);
+                alert("Network Fault: " + err.message);
                 document.getElementById('connectionStatus').textContent = "Sync failed...";
             }
         }
@@ -197,4 +197,3 @@
                 localMessageCache.shift();
             }
 
-            const jsonString = JSON.stringify({ messages: localMessageCache }, null, 2);
