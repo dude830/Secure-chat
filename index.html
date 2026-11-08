@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Secure Multi-Device Linked Workspace</title>
+    <title>Secure GitHub Cloud Chat</title>
     <style>
         :root {
             --bg-color: #f4f5f7;
@@ -46,105 +46,125 @@
         .chat-input { flex: 1; padding: 14px; border: 1px solid var(--border); border-radius: 14px; font-size: 15px; outline: none; }
         .btn-send { background: var(--primary); color: white; border: none; padding: 0 24px; border-radius: 14px; font-weight: 600; cursor: pointer; }
     </style>
-    <!-- Include Live Global Sync Network Engine -->
-    <script src="https://ably.com"></script>
 </head>
 <body>
 
     <!-- Lock Screen Layout -->
     <div class="gatekeeper-container" id="lockScreen">
-        <h2>🔒 Secured Platform</h2>
-        <p>Enter your 4-digit PIN to connect to the cloud link.</p>
+        <h2>🔒 GitHub Live Workspace</h2>
+        <p>Enter passcode 1356 to link your chat network.</p>
         <input type="password" id="passcodeField" class="pin-input" placeholder="••••" maxlength="4">
-        <button class="btn-unlock" onclick="checkPasscode()">Verify & Link Devices</button>
+        <button class="btn-unlock" onclick="checkPasscode()">Verify & Sync</button>
         <p class="error-msg" id="errorMsg">Incorrect passcode.</p>
     </div>
 
     <!-- Chat App Layout -->
     <div class="chat-container" id="chatScreen">
         <div class="chat-header">
-            <div><h3>💬 Linked Cloud Room</h3></div>
-            <div class="status-box" id="connectionStatus">Connecting to Pipeline...</div>
+            <div><h3>💬 GitCloud Sync Room</h3></div>
+            <div class="status-box" id="connectionStatus">Connected</div>
         </div>
         
         <div class="chat-messages" id="messageBox"></div>
 
         <div class="chat-input-area">
-            <input type="text" id="chatInputField" class="chat-input" placeholder="Type a message to broadcast everywhere...">
+            <input type="text" id="chatInputField" class="chat-input" placeholder="Type a message to sync...">
             <button class="btn-send" onclick="sendMessage()">Send</button>
         </div>
     </div>
 
     <script>
-        // Generate a random user identifier string for this browser session
-        const myUserTag = "User-" + Math.floor(Math.random() * 9000 + 1000);
         const MASTER_PASSCODE = "1356"; 
         
-        let ably, channel;
+        let myUserTag = localStorage.getItem('git_chat_user_v7');
+        if (!myUserTag) {
+            myUserTag = "User-" + Math.floor(Math.random() * 9000 + 1000);
+            localStorage.setItem('git_chat_user_v7', myUserTag);
+        }
+
+        // Shared open storage endpoint that groups messages together automatically 
+        const SYNC_URL = "https://npoint.io"; 
+        let localMessageCache = [];
 
         window.checkPasscode = function() {
             const input = document.getElementById('passcodeField').value;
-            const error = document.getElementById('errorMsg');
-            
             if (input === MASTER_PASSCODE) {
                 document.getElementById('lockScreen').style.display = 'none';
                 document.getElementById('chatScreen').style.display = 'flex';
-                error.style.display = 'none';
-                initGlobalCloudSync();
+                syncCloudMessages();
+                // Checks the internet stream automatically every 4 seconds for new messages
+                setInterval(syncCloudMessages, 4000);
             } else {
-                error.style.display = 'block';
+                document.getElementById('errorMsg').style.display = 'block';
             }
             document.getElementById('passcodeField').value = '';
         };
 
-        function initGlobalCloudSync() {
-            // Uses a public developer bridge key to transmit text messages completely free without an account
-            ably = new Ably.Realtime('xV7w_A.gqfCeg:uE8v2WfD-vC_F6-m4P8c4RzX1v6K-2L0M3N4O5P6Q7R');
-            
-            ably.connection.on('connected', () => {
-                document.getElementById('connectionStatus').textContent = "☁️ Global Cloud Connected";
-            });
-
-            // Connects both devices to the exact same hidden channel slot
-            channel = ably.channels.get('global-secure-shared-mesh-v4');
-
-            // Listen for any messages coming down from the internet pipeline
-            channel.subscribe('message-event', (message) => {
-                renderMessage(message.data);
-            });
+        // FETCH DATA
+        async function syncCloudMessages() {
+            try {
+                const response = await fetch(SYNC_URL);
+                const data = await response.json();
+                
+                if (data && Array.isArray(data.messages)) {
+                    localMessageCache = data.messages;
+                    renderChatFeed();
+                    document.getElementById('connectionStatus').textContent = "☁️ Synced Across Devices";
+                }
+            } catch (err) {
+                console.error("Sync failed", err);
+            }
         }
 
-        function renderMessage(data) {
+        function renderChatFeed() {
             const messageBox = document.getElementById('messageBox');
-            const isMe = data.sender === myUserTag;
+            messageBox.innerHTML = ''; 
             
-            const row = document.createElement('div');
-            row.className = `message-row ${isMe ? 'row-outgoing' : 'row-incoming'}`;
-            
-            row.innerHTML = `
-                <span class="msg-sender">${isMe ? 'You' : data.sender}</span>
-                <div class="message">${escapeHTML(data.text)}</div>
-            `;
-            messageBox.appendChild(row);
+            localMessageCache.forEach((msg) => {
+                const isMe = msg.sender === myUserTag;
+                const row = document.createElement('div');
+                row.className = `message-row ${isMe ? 'row-outgoing' : 'row-incoming'}`;
+                
+                row.innerHTML = `
+                    <span class="msg-sender">${isMe ? 'You' : msg.sender}</span>
+                    <div class="message">${escapeHTML(msg.text)}</div>
+                `;
+                messageBox.appendChild(row);
+            });
             messageBox.scrollTop = messageBox.scrollHeight;
         }
 
-        window.sendMessage = function() {
+        // PUSH DATA
+        window.sendMessage = async function() {
             const inputField = document.getElementById('chatInputField');
             const text = inputField.value.trim();
             if (!text) return;
 
-            const messagePayload = {
+            const newMsgPayload = {
                 text: text,
-                sender: myUserTag
+                sender: myUserTag,
+                timestamp: new Date().getTime()
             };
 
-            // Blast the message straight up into the cloud pipeline
-            if (channel) {
-                channel.publish('message-event', messagePayload);
-            }
-            
+            localMessageCache.push(newMsgPayload);
+            renderChatFeed();
             inputField.value = '';
+            document.getElementById('connectionStatus').textContent = "Syncing...";
+
+            if (localMessageCache.length > 40) {
+                localMessageCache.shift();
+            }
+
+            try {
+                await fetch(SYNC_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ messages: localMessageCache })
+                });
+                document.getElementById('connectionStatus').textContent = "☁️ Synced Across Devices";
+            } catch (err) {
+                console.error("Upload lost", err);
+            }
         };
 
         function escapeHTML(str) {
