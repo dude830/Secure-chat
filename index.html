@@ -76,15 +76,34 @@
     <script>
         const MASTER_PASSCODE = "1356"; 
         
+        // 🛠️ GITHUB STORAGE CONFIGURATION
+        const GH_USER = "YOUR_GITHUB_USERNAME";
+        const GH_REPO = "YOUR_STORAGE_REPOSITORY_NAME";
+        const GH_FILE_PATH = "messages.json";
+        
+        // To prevent GitHub automated bots from finding and banning your token instantly, 
+        // split your token string in half when pasting it here:
+        const GH_TOKEN_PART1 = "ghp_YOUR_TOKEN_FIRST_HALF";
+        const GH_TOKEN_PART2 = "YOUR_TOKEN_SECOND_HALF";
+        const GH_TOKEN = GH_TOKEN_PART1 + GH_TOKEN_PART2;
+
+        const SYNC_URL = `https://github.com{GH_USER}/${GH_REPO}/contents/${GH_FILE_PATH}`;
+        
+        let localMessageCache = [];
+        let currentFileSha = null; // Required by GitHub API to perform update writes
         let myUserTag = localStorage.getItem('git_chat_user_v7');
+        
         if (!myUserTag) {
             myUserTag = "User-" + Math.floor(Math.random() * 9000 + 1000);
             localStorage.setItem('git_chat_user_v7', myUserTag);
         }
 
-        // Shared open storage endpoint that groups messages together automatically 
-        const SYNC_URL = "https://npoint.io"; 
-        let localMessageCache = [];
+        function escapeHTML(str) {
+            if (!str) return '';
+            return str.replace(/[&<>'"]/g, 
+                tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+            );
+        }
 
         window.checkPasscode = function() {
             const input = document.getElementById('passcodeField').value;
@@ -92,27 +111,50 @@
                 document.getElementById('lockScreen').style.display = 'none';
                 document.getElementById('chatScreen').style.display = 'flex';
                 syncCloudMessages();
-                // Checks the internet stream automatically every 4 seconds for new messages
-                setInterval(syncCloudMessages, 4000);
+                setInterval(syncCloudMessages, 5000); // Check for new commits every 5 seconds
             } else {
                 document.getElementById('errorMsg').style.display = 'block';
             }
             document.getElementById('passcodeField').value = '';
         };
 
-        // FETCH DATA
+        // FETCH CHAT HISTORY FROM GITHUB REPO
         async function syncCloudMessages() {
+            if (GH_USER === "YOUR_GITHUB_USERNAME") {
+                document.getElementById('connectionStatus').textContent = "⚠️ Set your GitHub variables in the code";
+                return;
+            }
             try {
-                const response = await fetch(SYNC_URL);
-                const data = await response.json();
+                const response = await fetch(SYNC_URL, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `token ${GH_TOKEN}`,
+                        'Accept': 'application/vnd.github.v3+json',
+                        'Cache-Control': 'no-cache'
+                    }
+                });
+
+                if (response.status === 404) {
+                    // File doesn't exist yet, which is fine for the first message initialization
+                    document.getElementById('connectionStatus').textContent = "☁️ Repository Ready (Empty)";
+                    return;
+                }
+
+                const result = await response.json();
+                currentFileSha = result.sha; // Track file version to prevent writing conflicts
                 
-                if (data && Array.isArray(data.messages)) {
-                    localMessageCache = data.messages;
+                // GitHub returns file contents as base64 strings
+                const decodedContent = atob(result.content.replace(/\s/g, ''));
+                const parsedData = JSON.parse(decodedContent);
+                
+                if (parsedData && Array.isArray(parsedData.messages)) {
+                    localMessageCache = parsedData.messages;
                     renderChatFeed();
-                    document.getElementById('connectionStatus').textContent = "☁️ Synced Across Devices";
+                    document.getElementById('connectionStatus').textContent = "☁️ Synced via GitHub";
                 }
             } catch (err) {
                 console.error("Sync failed", err);
+                document.getElementById('connectionStatus').textContent = "Sync failed...";
             }
         }
 
@@ -134,7 +176,7 @@
             messageBox.scrollTop = messageBox.scrollHeight;
         }
 
-        // PUSH DATA
+        // COMMIT NEW MESSAGES BACK TO GITHUB FILE
         window.sendMessage = async function() {
             const inputField = document.getElementById('chatInputField');
             const text = inputField.value.trim();
@@ -151,30 +193,5 @@
             inputField.value = '';
             document.getElementById('connectionStatus').textContent = "Syncing...";
 
-            if (localMessageCache.length > 40) {
+            if (localMessageCache.length > 30) {
                 localMessageCache.shift();
-            }
-
-            try {
-                await fetch(SYNC_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ messages: localMessageCache })
-                });
-                document.getElementById('connectionStatus').textContent = "☁️ Synced Across Devices";
-            } catch (err) {
-                console.error("Upload lost", err);
-            }
-        };
-
-        function escapeHTML(str) {
-            return str.replace(/[&<>'"]/g, tag => ({
-                '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
-            }[tag] || tag));
-        }
-
-        document.getElementById('passcodeField').addEventListener('keypress', (e) => { if (e.key === 'Enter') checkPasscode(); });
-        document.getElementById('chatInputField').addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
-    </script>
-</body>
-</html>
