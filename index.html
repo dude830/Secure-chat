@@ -8,7 +8,7 @@
         :root {
             --bg-color: #f4f5f7;
             --card-bg: #ffffff;
-            --primary: #07c160; /* WeChat Green Accent */
+            --primary: #07c160;
             --text-main: #1d1d1f;
             --text-muted: #86868b;
             --border: #e5e5ea;
@@ -16,7 +16,6 @@
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
         body { background-color: var(--bg-color); color: var(--text-main); display: flex; justify-content: center; align-items: center; height: 100vh; }
 
-        /* LOCK SCREEN */
         .gatekeeper-container { text-align: center; background: var(--card-bg); padding: 40px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); width: 100%; max-width: 400px; }
         .gatekeeper-container h2 { margin-bottom: 10px; font-size: 24px; font-weight: 600; }
         .gatekeeper-container p { color: var(--text-muted); font-size: 14px; margin-bottom: 25px; }
@@ -25,7 +24,6 @@
         .btn-unlock { width: 100%; background: var(--primary); color: white; border: none; padding: 15px; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; }
         .error-msg { color: #ff3b30; font-size: 13px; margin-top: 10px; display: none; }
 
-        /* CHAT INTERFACE */
         .chat-container { display: none; width: 100%; max-width: 800px; height: 85vh; background: var(--card-bg); border-radius: 24px; box-shadow: 0 10px 40px rgba(0,0,0,0.03); border: 1px solid var(--border); flex-direction: column; overflow: hidden; }
         .chat-header { padding: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: var(--card-bg); }
         .chat-header h3 { font-weight: 600; font-size: 18px; }
@@ -49,7 +47,6 @@
 </head>
 <body>
 
-    <!-- Lock Screen Layout -->
     <div class="gatekeeper-container" id="lockScreen">
         <h2>🔒 GitHub Live Workspace</h2>
         <p>Enter passcode 1356 to link your chat network.</p>
@@ -58,7 +55,6 @@
         <p class="error-msg" id="errorMsg">Incorrect passcode.</p>
     </div>
 
-    <!-- Chat App Layout -->
     <div class="chat-container" id="chatScreen">
         <div class="chat-header">
             <div><h3>💬 GitCloud Sync Room</h3></div>
@@ -76,21 +72,18 @@
     <script>
         const MASTER_PASSCODE = "1356"; 
         
-        // 🛠️ GITHUB STORAGE CONFIGURATION
         const GH_USER = "YOUR_GITHUB_USERNAME";
         const GH_REPO = "YOUR_STORAGE_REPOSITORY_NAME";
         const GH_FILE_PATH = "messages.json";
         
-        // To prevent GitHub automated bots from finding and banning your token instantly, 
-        // split your token string in half when pasting it here:
-        const GH_TOKEN_PART1 = "ghp_YOUR_TOKEN_FIRST_HALF";
+        const GH_TOKEN_PART1 = "YOUR_TOKEN_FIRST_HALF";
         const GH_TOKEN_PART2 = "YOUR_TOKEN_SECOND_HALF";
         const GH_TOKEN = GH_TOKEN_PART1 + GH_TOKEN_PART2;
 
         const SYNC_URL = `https://github.com{GH_USER}/${GH_REPO}/contents/${GH_FILE_PATH}`;
         
         let localMessageCache = [];
-        let currentFileSha = null; // Required by GitHub API to perform update writes
+        let currentFileSha = null;
         let myUserTag = localStorage.getItem('git_chat_user_v7');
         
         if (!myUserTag) {
@@ -111,17 +104,17 @@
                 document.getElementById('lockScreen').style.display = 'none';
                 document.getElementById('chatScreen').style.display = 'flex';
                 syncCloudMessages();
-                setInterval(syncCloudMessages, 5000); // Check for new commits every 5 seconds
+                setInterval(syncCloudMessages, 5000);
             } else {
                 document.getElementById('errorMsg').style.display = 'block';
             }
             document.getElementById('passcodeField').value = '';
         };
 
-        // FETCH CHAT HISTORY FROM GITHUB REPO
         async function syncCloudMessages() {
-            if (GH_USER === "YOUR_GITHUB_USERNAME") {
-                document.getElementById('connectionStatus').textContent = "⚠️ Set your GitHub variables in the code";
+            if (GH_USER === "YOUR_GITHUB_USERNAME" || GH_TOKEN_PART1 === "YOUR_TOKEN_FIRST_HALF") {
+                alert("Setup Missing: Please configure your actual GitHub credentials in the code.");
+                document.getElementById('connectionStatus').textContent = "⚠️ Configuration Missing";
                 return;
             }
             try {
@@ -134,16 +127,20 @@
                     }
                 });
 
+                if (response.status === 401) {
+                    alert("GitHub Error: Personal Access Token is invalid.");
+                    document.getElementById('connectionStatus').textContent = "⚠️ Invalid Token";
+                    return;
+                }
+
                 if (response.status === 404) {
-                    // File doesn't exist yet, which is fine for the first message initialization
-                    document.getElementById('connectionStatus').textContent = "☁️ Repository Ready (Empty)";
+                    document.getElementById('connectionStatus').textContent = "☁️ Repo Connected (Empty File)";
                     return;
                 }
 
                 const result = await response.json();
-                currentFileSha = result.sha; // Track file version to prevent writing conflicts
+                currentFileSha = result.sha;
                 
-                // GitHub returns file contents as base64 strings
                 const decodedContent = atob(result.content.replace(/\s/g, ''));
                 const parsedData = JSON.parse(decodedContent);
                 
@@ -176,7 +173,6 @@
             messageBox.scrollTop = messageBox.scrollHeight;
         }
 
-        // COMMIT NEW MESSAGES BACK TO GITHUB FILE
         window.sendMessage = async function() {
             const inputField = document.getElementById('chatInputField');
             const text = inputField.value.trim();
@@ -195,3 +191,14 @@
 
             if (localMessageCache.length > 30) {
                 localMessageCache.shift();
+            }
+
+            const jsonString = JSON.stringify({ messages: localMessageCache }, null, 2);
+            const base64Content = btoa(unescape(encodeURIComponent(jsonString)));
+
+            const commitPayload = {
+                message: "chat sync update",
+                content: base64Content
+            };
+
+            if (currentFileSha) {
