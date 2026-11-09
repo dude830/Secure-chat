@@ -101,6 +101,8 @@
                 supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
                 
                 const { data, error } = await supabaseClient.from('messages').select('*').order('created_at', { ascending: true });
+                if (error) throw error;
+                
                 if (data) {
                     data.forEach(msg => renderMessageBubble(msg));
                 }
@@ -114,6 +116,8 @@
             } catch (err) {
                 console.error(err);
                 document.getElementById('connectionStatus').textContent = "Connection Error";
+                document.getElementById('connectionStatus').style.color = "#ff3b30";
+                document.getElementById('connectionStatus').style.background = "#ffeceb";
             }
         }
 
@@ -124,7 +128,7 @@
             const row = document.createElement('div');
             row.className = `message-row ${isMe ? 'row-outgoing' : 'row-incoming'}`;
             row.innerHTML = `
-                <span class="msg-sender">${isMe ? 'You' : msg.sender}</span>
+                <span class="msg-sender">${isMe ? 'You' : escapeHTML(msg.sender)}</span>
                 <div class="message">${escapeHTML(msg.text)}</div>
             `;
             messageBox.appendChild(row);
@@ -141,18 +145,28 @@
             inputField.value = '';
 
             if (supabaseClient) {
-                await supabaseClient.from('messages').insert([localPayload]);
+                const { error } = await supabaseClient.from('messages').insert([localPayload]);
+                if (error) console.error("Failed to send:", error);
             }
         };
 
         function escapeHTML(str) {
-            return str.replace(/[&<>'"]/g, tag => ({
-                '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+            return String(str).replace(/[&<>'"]/g, tag => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                "'": '&#39;',
+                '"': '&quot;'
             }[tag] || tag));
         }
 
-        document.getElementById('passcodeField').addEventListener('keypress', (e) => { if (e.key === 'Enter') checkPasscode(); });
-        document.getElementById('chatInputField').addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+        document.getElementById('passcodeField').addEventListener('keypress', (e) => { 
+            if (e.key === 'Enter') checkPasscode(); 
+        });
+        
+        document.getElementById('chatInputField').addEventListener('keypress', (e) => { 
+            if (e.key === 'Enter') sendMessage(); 
+        });
     </script>
 </body>
 </html>
