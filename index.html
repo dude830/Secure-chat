@@ -8,7 +8,7 @@
         :root {
             --bg-color: #f4f5f7;
             --card-bg: #ffffff;
-            --primary: #07c160; /* WeChat Green Accent */
+            --primary: #07c160;
             --text-main: #1d1d1f;
             --text-muted: #86868b;
             --border: #e5e5ea;
@@ -16,7 +16,6 @@
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
         body { background-color: var(--bg-color); color: var(--text-main); display: flex; justify-content: center; align-items: center; height: 100vh; }
 
-        /* LOCK SCREEN */
         .gatekeeper-container { text-align: center; background: var(--card-bg); padding: 40px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); width: 100%; max-width: 400px; }
         .gatekeeper-container h2 { margin-bottom: 10px; font-size: 24px; font-weight: 600; }
         .gatekeeper-container p { color: var(--text-muted); font-size: 14px; margin-bottom: 25px; }
@@ -25,7 +24,6 @@
         .btn-unlock { width: 100%; background: var(--primary); color: white; border: none; padding: 15px; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; }
         .error-msg { color: #ff3b30; font-size: 13px; margin-top: 10px; display: none; }
 
-        /* CHAT INTERFACE */
         .chat-container { display: none; width: 100%; max-width: 800px; height: 85vh; background: var(--card-bg); border-radius: 24px; box-shadow: 0 10px 40px rgba(0,0,0,0.03); border: 1px solid var(--border); flex-direction: column; overflow: hidden; }
         .chat-header { padding: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: var(--card-bg); }
         .chat-header h3 { font-weight: 600; font-size: 18px; }
@@ -46,12 +44,10 @@
         .chat-input { flex: 1; padding: 14px; border: 1px solid var(--border); border-radius: 14px; font-size: 15px; outline: none; }
         .btn-send { background: var(--primary); color: white; border: none; padding: 0 24px; border-radius: 14px; font-weight: 600; cursor: pointer; }
     </style>
-    <!-- Include Supabase Core Package SDK Libraries -->
     <script src="https://jsdelivr.net"></script>
 </head>
 <body>
 
-    <!-- Lock Screen Layout -->
     <div class="gatekeeper-container" id="lockScreen">
         <h2>🔒 Secured Workspace</h2>
         <p>Enter your 4-digit PIN to load your private cloud sync vault.</p>
@@ -60,7 +56,6 @@
         <p class="error-msg" id="errorMsg">Incorrect passcode.</p>
     </div>
 
-    <!-- Chat App Layout -->
     <div class="chat-container" id="chatScreen">
         <div class="chat-header">
             <div><h3>💬 Private WeChat Room</h3></div>
@@ -78,18 +73,16 @@
     <script>
         const MASTER_PASSCODE = "1356"; 
         
-        // Generate persistent profile username metadata tags
-        let myUserTag = localStorage.getItem('secure_chat_username_v10');
+        let myUserTag = localStorage.getItem('secure_chat_username_v12');
         if (!myUserTag) {
             myUserTag = "User-" + Math.floor(Math.random() * 9000 + 1000);
-            localStorage.setItem('secure_chat_username_v10', myUserTag);
+            localStorage.setItem('secure_chat_username_v12', myUserTag);
         }
 
-        // Your custom reconstructed database links integrated directly
-        const SUPABASE_URL = "https://oosb1yoz7l0_1l2ul9zqiq.supabase.co"; 
+        const SUPABASE_URL = "https://psconwjghpvokoiabxim.supabase.co"; 
         const SUPABASE_ANON_KEY = "sb_publishable_oOSB1YOz7L0_1L2UL9zqiQ_eUqHxtPh"; 
 
-        let supabaseClient;
+        let supabaseClient = null;
 
         window.checkPasscode = function() {
             const input = document.getElementById('passcodeField').value;
@@ -104,22 +97,24 @@
         };
 
         async function initDatabaseConnection() {
-            // Build the cloud matrix link connection channel
-            supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-            
-            // 1. Instantly pull up all your historical database streams when you enter the chat
-            const { data, error } = await supabaseClient.from('messages').select('*').order('created_at', { ascending: true });
-            if (data) {
-                data.forEach(msg => renderMessageBubble(msg));
-            }
+            try {
+                supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                
+                const { data, error } = await supabaseClient.from('messages').select('*').order('created_at', { ascending: true });
+                if (data) {
+                    data.forEach(msg => renderMessageBubble(msg));
+                }
 
-            // 2. Open up real-time pipeline listeners to update live whenever a text drops
-            supabaseClient.channel('room-updates')
-                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
-                    if (payload.new.sender !== myUserTag) {
-                        renderMessageBubble(payload.new);
-                    }
-                }).subscribe();
+                supabaseClient.channel('room-updates')
+                    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
+                        if (payload.new.sender !== myUserTag) {
+                            renderMessageBubble(payload.new);
+                        }
+                    }).subscribe();
+            } catch (err) {
+                console.error(err);
+                document.getElementById('connectionStatus').textContent = "Connection Error";
+            }
         }
 
         function renderMessageBubble(msg) {
@@ -142,13 +137,12 @@
             if (!text) return;
 
             const localPayload = { text: text, sender: myUserTag };
-            
-            // Draw immediately locally so typing feels smooth
             renderMessageBubble(localPayload);
             inputField.value = '';
 
-            // Put data onto the public spreadsheet repository table
-            await supabaseClient.from('messages').insert([localPayload]);
+            if (supabaseClient) {
+                await supabaseClient.from('messages').insert([localPayload]);
+            }
         };
 
         function escapeHTML(str) {
